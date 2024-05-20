@@ -8,24 +8,23 @@
 
 ## Структура проекта
 - [pipeline.py](https://github.com/L-Gaysina/luigi-pipeline/blob/main/pipeline.py): Основной файл с кодом пайплайна Luigi.
-- [requirements.txt(https://github.com/L-Gaysina/luigi-pipeline/blob/main/requirements.txt): Файл с зависимостями, необходимыми для выполнения пайплайна.
-- [архивс папкой датасета]()  , полученной в результате работы пайплайна
+- [requirements.txt](https://github.com/L-Gaysina/luigi-pipeline/blob/main/requirements.txt): Файл с зависимостями, необходимыми для выполнения пайплайна.
+- [папка с датасетом](https://drive.google.com/drive/folders/1-q85T8bhplvA0LaGTBRAHdTZ5Rt0q_4H?usp=sharing), полученным в результате работы пайплайна
 
-### Требования
+## Требования
 
 Для запуска пайплайна необходим Python 3 и установленные зависимости из `requirements.txt`.
 
-### Инструкция по установке и запуску
+## Инструкция по установке и запуску
 
-1. Установите зависимости:
+### 1. Установите зависимости:
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+pip install -r requirements.txt
+```    
 
-2. Запуск пайплайна
-
-Для запуска всех задач пайплайна выполните следующую команду:
+### 2. Для запуска всех задач пайплайна выполните следующую команду:
 
 ```bash
 python pipeline.py RunAllTasks --local-scheduler --data-dir 'data' --dataset-series 'GSE68nnn' --dataset-name 'GSE68849'
+```
