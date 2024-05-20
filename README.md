@@ -9,7 +9,7 @@
 ## Структура проекта
 - [pipeline.py](https://github.com/L-Gaysina/luigi-pipeline/blob/main/pipeline.py): Основной файл с кодом пайплайна Luigi.
 - [requirements.txt](https://github.com/L-Gaysina/luigi-pipeline/blob/main/requirements.txt): Файл с зависимостями, необходимыми для выполнения пайплайна.
-- [папка с датасетом](https://drive.google.com/drive/folders/1-q85T8bhplvA0LaGTBRAHdTZ5Rt0q_4H?usp=sharing), полученным в результате работы пайплайна
+- [папка с датасетом](https://drive.google.com/drive/folders/1Cd430AMsyauHSPOnKTbnVI9N4XYvCnaO?usp=sharing), полученным в результате работы пайплайна
 
 ## Требования
 
