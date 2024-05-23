@@ -17,13 +17,20 @@
 
 ## Инструкция по установке и запуску
 
-### 1. Установите зависимости:
+### 1.Клонирование репозитория:
+```bash
+git clone https://github.com/L-Gaysina/luigi-pipeline.git
+```
+```bash
+cd luigi-pipeline
+```
+### 2. Установите зависимости:
 
 ```bash
 pip install -r requirements.txt
 ```    
 
-### 2. Для запуска всех задач пайплайна выполните следующую команду:
+### 3. Для запуска всех задач пайплайна выполните следующую команду:
 
 ```bash
 python pipeline.py RunAllTasks --local-scheduler --data-dir 'data' --dataset-series 'GSE68nnn' --dataset-name 'GSE68849'
