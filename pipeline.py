@@ -8,13 +8,14 @@ import pandas as pd
 import io
 import logging
 import wget
+from datetime import datetime
 
 # Инициализация логирования
 logger = logging.getLogger('luigi-interface')
 logging.basicConfig(level=logging.INFO)
 
-## Шаг 1: Загрузка архива с данными
-class DownloadDataset(luigi.Task):
+# Шаг 1: Загрузка архива с данными
+class DownloadGeoDataset(luigi.Task):
     # Параметры задачи
     data_dir = luigi.Parameter(default='data')
     dataset_series = luigi.Parameter(default='GSE68nnn')
@@ -30,13 +31,13 @@ class DownloadDataset(luigi.Task):
         
         # Формируем URL для скачивания архива
         download_url = f"https://ftp.ncbi.nlm.nih.gov/geo/series/{self.dataset_series}/{self.dataset_name}/suppl/{self.dataset_name}_RAW.tar"
-        logger.info(f"URL для скачивания: {download_url}")
+        logger.info(f"Download URL: {download_url}")
         
         # Скачиваем архив
         try:
             output_path = self.output().path
             wget.download(download_url, out=output_path)
-            logger.info(f"Файл скачан по пути:{output_path}")
+            logger.info(f"Файл скачан по пути: {output_path}")
         except Exception as e:
             logger.error(f"Ошибка при скачивании файла: {e}")
             raise
@@ -52,50 +53,50 @@ class DownloadDataset(luigi.Task):
         logger.info("Скачанный файл отсутствует или пустой")
         return False
 
-## Шаг 2: Разархивирование и извлечение файлов
-class ExtractFiles(luigi.Task):
-    # Параметры для задания
+# Шаг 2: Распаковка tar-архива и gzip-файлов
+class ExtractGzipFiles(luigi.Task):
+    # Параметры задачи
     data_dir = luigi.Parameter(default='data')
     dataset_name = luigi.Parameter(default='GSE68849')
 
     def requires(self):
-        return DownloadDataset(data_dir=self.data_dir, dataset_series='GSE68nnn', dataset_name=self.dataset_name)
+        # Зависимость от задачи DownloadGeoDataset
+        return DownloadGeoDataset(data_dir=self.data_dir, dataset_series='GSE68nnn', dataset_name=self.dataset_name)
 
     def output(self):
-        # Указываем путь к директории с извлеченными файлами
+        # Указываем путь к выходной директории, где будут распакованы файлы
         return luigi.LocalTarget(os.path.join(self.data_dir, self.dataset_name, 'extracted'))
 
     def run(self):
-        # Путь к tar-архиву
         tar_path = self.input().path
-        # Путь для извлечения файлов
         extract_path = self.output().path
         os.makedirs(extract_path, exist_ok=True)
 
-        # Распаковка tar архива
+        # Распаковка tar-архива
         with tarfile.open(tar_path, "r") as tar:
             tar.extractall(path=extract_path)
             logger.info(f"Распакован tar-архив в: {extract_path}")
 
-        # Распаковка всех gzip файлов и создание под каждую папку
+        # Распаковка каждого gzip-файла в отдельную директорию
         for root, _, files in os.walk(extract_path):
             for file in files:
                 if file.endswith('.gz'):
                     gzip_file_path = os.path.join(root, file)
                     file_name_without_ext = os.path.splitext(os.path.splitext(file)[0])[0]
-                    output_dir = os.path.join(root, file_name_without_ext)
+                    output_dir = os.path.join(extract_path, file_name_without_ext)
                     os.makedirs(output_dir, exist_ok=True)
                     output_file_path = os.path.join(output_dir, file_name_without_ext + '.txt')
 
-                    # Распаковка gzip файла
+                    # Распаковка gzip-файла
                     with gzip.open(gzip_file_path, 'rb') as f_in:
                         with open(output_file_path, 'wb') as f_out:
                             shutil.copyfileobj(f_in, f_out)
                     
+                    # Удаление исходного gzip-файла
                     os.remove(gzip_file_path)
                     logger.info(f"Распакован gzip-файл в: {output_file_path}")
 
-        # Проверка количества и названий файлов
+        # Логирование извлеченных файлов
         extracted_files = []
         for root, _, files in os.walk(extract_path):
             for file in files:
@@ -103,32 +104,42 @@ class ExtractFiles(luigi.Task):
         logger.info(f'Извлеченные файлы: {extracted_files}')
         logger.info(f'Количество извлеченных файлов: {len(extracted_files)}')
 
-## Шаг 3: Обработка текстовых файлов и извлечение данных
+
+# Шаг 3: Обработка текстовых файлов и извлечение данных
 class ProcessTextFiles(luigi.Task):
-    # Параметры для задания
+    # Параметры задачи
     data_dir = luigi.Parameter(default='data')
     dataset_name = luigi.Parameter(default='GSE68849')
 
     def requires(self):
-        return ExtractFiles(data_dir=self.data_dir, dataset_name=self.dataset_name)
+        # Зависимость от задачи ExtractGzipFiles
+        return ExtractGzipFiles(data_dir=self.data_dir, dataset_name=self.dataset_name)
 
     def output(self):
-        # Указываем путь к директории с обработанными файлами
+        # Указываем путь к выходной директории, где будут сохранены обработанные файлы
         return luigi.LocalTarget(os.path.join(self.data_dir, self.dataset_name, 'processed'))
 
     def run(self):
-        # Путь к извлеченным файлам
         extract_path = os.path.join(self.data_dir, self.dataset_name, 'extracted')
-        # Путь для сохранения обработанных файлов
         processed_path = self.output().path
         os.makedirs(processed_path, exist_ok=True)
 
-        # Обработка каждого текстового файла
-        for root, _, files in os.walk(extract_path):
-            for file in files:
-                if file.endswith('.txt'):
-                    file_path = os.path.join(root, file)
-                    self.process_file(file_path, processed_path)
+        # Обработка каждой директории
+        for root, dirs, files in os.walk(extract_path):
+            for dir in dirs:
+                dir_path = os.path.join(root, dir)
+                self.process_directory(dir_path, processed_path)
+
+    def process_directory(self, dir_path, output_root):
+        # Создание выходной директории для каждого текстового файла
+        output_dir = os.path.join(output_root, os.path.basename(dir_path))
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Обработка каждого текстового файла в директории
+        for file in os.listdir(dir_path):
+            if file.endswith('.txt'):
+                file_path = os.path.join(dir_path, file)
+                self.process_file(file_path, output_dir)
 
     def process_file(self, file_path, output_dir):
         dfs = {}
@@ -136,10 +147,8 @@ class ProcessTextFiles(luigi.Task):
             write_key = None
             fio = io.StringIO()
             for line in f:
-                 # Начало новой таблицы, заголовок которой начинается с символа '['
                 if line.startswith('['):
                     if write_key:
-                        # Сохранение текущей таблицы в словарь
                         fio.seek(0)
                         header = None if write_key == 'Heading' else 'infer'
                         dfs[write_key] = pd.read_csv(fio, sep='\t', header=header)
@@ -151,18 +160,18 @@ class ProcessTextFiles(luigi.Task):
             fio.seek(0)
             dfs[write_key] = pd.read_csv(fio, sep='\t')
 
-        # Сохранение каждой таблицы в отдельный TSV файл
+        # Сохранение каждой таблицы в отдельный TSV-файл
         for key, df in dfs.items():
             output_file = os.path.join(output_dir, f"{key}.tsv")
             df.to_csv(output_file, sep='\t', index=False)
+            logger.info(f"Сохранена таблица {key} в файл {output_file}")
 
-        # Обработка таблицы Probes, если она существует
+        # Обработка таблицы Probes
         if 'Probes' in dfs:
             self.process_probes(dfs['Probes'], output_dir)
 
     def process_probes(self, probes_df, output_dir):
-
-        # Урезанная версия таблицы Probes
+        # Удаление ненужных колонок из таблицы Probes
         columns_to_drop = ['Definition', 'Ontology_Component', 'Ontology_Process', 'Ontology_Function', 'Synonyms', 'Obsolete_Probe_Id', 'Probe_Sequence']
         reduced_probes_df = probes_df.drop(columns=columns_to_drop)
         reduced_probes_path = os.path.join(output_dir, 'Probes_reduced.tsv')
