@@ -103,10 +103,9 @@ class ExtractFiles(luigi.Task):
         logger.info(f'Извлеченные файлы: {extracted_files}')
         logger.info(f'Количество извлеченных файлов: {len(extracted_files)}')
 
-
-# Шаг 3: Обработка текстовых файлов и извлечение данных
+## Шаг 3: Обработка текстовых файлов и извлечение данных
 class ProcessTextFiles(luigi.Task):
-    # Параметры задачи
+    # Параметры для задания
     data_dir = luigi.Parameter(default='data')
     dataset_name = luigi.Parameter(default='GSE68849')
 
@@ -114,44 +113,36 @@ class ProcessTextFiles(luigi.Task):
         return ExtractFiles(data_dir=self.data_dir, dataset_name=self.dataset_name)
 
     def output(self):
-        # Указываем путь к выходной директории, где будут сохранены обработанные файлы
+        # Указываем путь к директории с обработанными файлами
         return luigi.LocalTarget(os.path.join(self.data_dir, self.dataset_name, 'processed'))
 
     def run(self):
+        # Путь к извлеченным файлам
         extract_path = os.path.join(self.data_dir, self.dataset_name, 'extracted')
+        # Путь для сохранения обработанных файлов
         processed_path = self.output().path
         os.makedirs(processed_path, exist_ok=True)
-        # Обработка каждой директории
-        for root, dirs, files in os.walk(extract_path):
-            for dir in dirs:
-                dir_path = os.path.join(root, dir)
-                self.process_directory(dir_path, processed_path)
 
-    def process_directory(self, dir_path, output_root):
-        # Создание выходной директории для каждого текстового файла
-        output_dir = os.path.join(output_root, os.path.basename(dir_path))
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Обработка каждого текстового файла в директории
-        for file in os.listdir(dir_path):
-            if file.endswith('.txt'):
-                file_path = os.path.join(dir_path, file)
-                self.process_file(file_path, output_dir)
+        # Обработка каждого текстового файла
+        for root, _, files in os.walk(extract_path):
+            for file in files:
+                if file.endswith('.txt'):
+                    file_path = os.path.join(root, file)
+                    self.process_file(file_path, processed_path)
 
     def process_file(self, file_path, output_dir):
-        # Создаем словарь для хранения датафреймов, извлеченных из файла
         dfs = {}
         with open(file_path, 'r') as f:
             write_key = None
             fio = io.StringIO()
-            # Читаем файл построчно
             for line in f:
+                 # Начало новой таблицы, заголовок которой начинается с символа '['
                 if line.startswith('['):
                     if write_key:
+                        # Сохранение текущей таблицы в словарь
                         fio.seek(0)
                         header = None if write_key == 'Heading' else 'infer'
                         dfs[write_key] = pd.read_csv(fio, sep='\t', header=header)
-                    # Очищаем StringIO объект для новой таблицы    
                     fio = io.StringIO()
                     write_key = line.strip('[]\n')
                     continue
@@ -159,25 +150,24 @@ class ProcessTextFiles(luigi.Task):
                     fio.write(line)
             fio.seek(0)
             dfs[write_key] = pd.read_csv(fio, sep='\t')
-        
-        # Сохранение каждой таблицы в отдельный TSV-файл
+
+        # Сохранение каждой таблицы в отдельный TSV файл
         for key, df in dfs.items():
             output_file = os.path.join(output_dir, f"{key}.tsv")
             df.to_csv(output_file, sep='\t', index=False)
-            logger.info(f"Сохранена таблица {key} в файл {output_file}")
 
-        # Обработка таблицы Probes
+        # Обработка таблицы Probes, если она существует
         if 'Probes' in dfs:
             self.process_probes(dfs['Probes'], output_dir)
 
     def process_probes(self, probes_df, output_dir):
-        # Удаление ненужных колонок из таблицы Probes
+
+        # Урезанная версия таблицы Probes
         columns_to_drop = ['Definition', 'Ontology_Component', 'Ontology_Process', 'Ontology_Function', 'Synonyms', 'Obsolete_Probe_Id', 'Probe_Sequence']
         reduced_probes_df = probes_df.drop(columns=columns_to_drop)
         reduced_probes_path = os.path.join(output_dir, 'Probes_reduced.tsv')
         reduced_probes_df.to_csv(reduced_probes_path, sep='\t', index=False)
         logger.info(f"Урезанная версия таблицы Probes сохранена в: {reduced_probes_path}")
-
 
 # Шаг 4: Удаление исходных текстовых файлов и создание readme.txt
 class CleanupFiles(luigi.Task):
@@ -224,6 +214,7 @@ class CleanupFiles(luigi.Task):
             logger.info(f"Файл readme.txt создан по пути: {readme_path}")
 
 # Выполнение всех шагов
+
 class RunAllTasks(luigi.WrapperTask):
     data_dir = luigi.Parameter(default='data')
     dataset_series = luigi.Parameter(default='GSE68nnn')
@@ -233,4 +224,4 @@ class RunAllTasks(luigi.WrapperTask):
         return CleanupFiles(data_dir=self.data_dir, dataset_name=self.dataset_name)
 
 if __name__ == "__main__":
-    luigi.run(main_task_cls=RunAllTasks)
+    luigi.run()
